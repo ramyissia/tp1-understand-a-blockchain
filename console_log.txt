@@ -1,0 +1,88 @@
+
+======================================================================
+Exercise 1 - What changes when data changes?
+======================================================================
+  'Alice pays Bob 10 tokens'     87a8855cfad9014bf689545effe49a836d2a987ad9a61b7e2cee77dc98f92528
+  'Alice pays Bob 100 tokens'    4d4c26069369ff513a541920af0d84ff9ced700351788f2cd3112ebe7b8b78ec
+  bits changed: 142 / 256, hex characters changed: 62 / 64
+
+  Same text, run twice:
+  run 1: 87a8855cfad9014bf689545effe49a836d2a987ad9a61b7e2cee77dc98f92528
+  run 2: 87a8855cfad9014bf689545effe49a836d2a987ad9a61b7e2cee77dc98f92528
+  identical: True
+
+  Prediction: capitalization or spacing changes give a new digest.
+  'alice pays Bob 10 tokens'     620b3797f8241bd4...  same as original: False  bits changed: 128
+  'ALICE PAYS BOB 10 TOKENS'     c784e6e8fe4d6bc3...  same as original: False  bits changed: 120
+  'Alice pays Bob 10 tokens '    18666d9450dcfa47...  same as original: False  bits changed: 129
+  'Alice  pays Bob 10 tokens'    1af2a5f3e5f11bb1...  same as original: False  bits changed: 139
+
+======================================================================
+Exercise 2 - Design a block (Test A)
+======================================================================
+  string hashed for b1: 1|0|Alice -> Bob: 10|abc|0
+  b1 hash: 03f7f88d2d984e0c0fe628580224330acc68a72489d98b0d5a544f50760dd8d8
+  b2 hash: 03f7f88d2d984e0c0fe628580224330acc68a72489d98b0d5a544f50760dd8d8
+  same fields: True
+  b2 hash after data change: 2f772da668dacf55a7e56f74cd949de8c302e183b892e70a237f532e3c2d47ab
+  changed data: True
+
+======================================================================
+Exercise 3 - Make a chain and detect tampering (Test B)
+======================================================================
+  Part A - chain built:
+  #0  prev=0             hash=bb80aa320d18  nonce=0      data='Genesis'
+  #1  prev=bb80aa320d18  hash=46537ae02d5d  nonce=0      data='Alice -> Bob: 10'
+  #2  prev=46537ae02d5d  hash=b302f0bef246  nonce=0      data='Bob -> Cara: 3'
+
+  Part C - attack:
+  before: True
+  after:  False
+    reason: block 1: stored hash does not match a fresh calculation (its data changed)
+
+  Step 16 (optional) - also recalculate block 1's hash:
+  after recalculating block 1: False
+    reason: block 2: previous_hash does not match the hash of block 1 (broken link)
+
+======================================================================
+Exercise 4 - Mine a block with Proof-of-Work (Test C)
+======================================================================
+  Observation table (Test C):
+  difficulty | nonce found | elapsed (s) | hash prefix
+           2 |          64 |      0.0001 | 000ef7a072ff
+           3 |          64 |      0.0001 | 000ef7a072ff
+           4 |       11796 |      0.0143 | 0000a0d5ae4c
+
+  Step 20 - repeated runs, 5 fresh blocks per difficulty
+  (timestamp 1..5, so every block has different content):
+  difficulty 2: nonces [457, 9, 120, 52, 318]
+                times  [0.0007, 0.0, 0.0001, 0.0001, 0.0004]  (expected about 256 attempts on average)
+  difficulty 3: nonces [5154, 7183, 8713, 10934, 1008]
+                times  [0.0062, 0.0092, 0.0108, 0.0134, 0.0012]  (expected about 4096 attempts on average)
+  difficulty 4: nonces [168174, 95316, 65943, 41710, 52174]
+                times  [0.2031, 0.1201, 0.082, 0.0503, 0.0636]  (expected about 65536 attempts on average)
+
+  Step 21 - extension: a mined chain (difficulty 3)
+  #0  prev=0             hash=bb80aa320d18  nonce=0      data='Genesis'
+  #1  prev=bb80aa320d18  hash=0003c328af1f  nonce=205    data='Alice -> Bob: 10'
+  #2  prev=0003c328af1f  hash=0006a882ca37  nonce=3044   data='Bob -> Cara: 3'
+  valid: True
+
+  Attacker changes block 1, then tries to cover it up:
+  [1] recalculate block 1's hash: False
+    reason: block 1: hash does not start with 3 zero(s) (PoW rule)
+  [2] re-mine block 1 only: False
+    reason: block 2: previous_hash does not match the hash of block 1 (broken link)
+  [3] re-mine block 1 AND block 2: True
+      -> one local copy can be fully rewritten (see Q5).
+
+======================================================================
+Debugging challenge - a validator that only checks links
+======================================================================
+  block 1 data changed to 'Alice -> Bob: 100', hashes left as they were
+  buggy_is_valid(chain): True   <- accepts the forgery
+  chain.is_valid():      False
+    reason: block 1: stored hash does not match a fresh calculation (its data changed)
+  Bug: buggy_is_valid compares two STORED values (previous_hash and
+  hash). Nobody recomputes block 1's hash from its data, so the edit
+  is invisible. Fix: also require block.hash == block.calculate_hash().
